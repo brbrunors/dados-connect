@@ -284,7 +284,7 @@ st.markdown("---")
 # 📊 RESUMO DOS ENCONTROS
 # =========================
 
-st.markdown("### 📊 Resumo Executivo dos Encontros")
+st.markdown("### 📊 Resumo dos Encontros")
 
 # Base apenas presentes
 df_presentes = df[df["presenca"] == "presente"].copy()
@@ -470,4 +470,5 @@ else:
 
 
 st.markdown("---")
+
 
