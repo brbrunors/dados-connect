@@ -281,7 +281,7 @@ st.markdown("---")
 
 
 # =========================
-# 📊 RESUMO EXECUTIVO DO ENCONTRO
+# 📊 RESUMO DOS ENCONTROS
 # =========================
 
 st.markdown("### 📊 Resumo Executivo dos Encontros")
@@ -470,3 +470,4 @@ else:
 
 
 st.markdown("---")
+
