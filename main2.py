@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import openpyxl
 
 st.set_page_config(layout="wide", page_title="Dashboard Connect")
 
@@ -98,48 +99,64 @@ if len(data_range) == 2:
 # KPIs
 # =========================
 
-total_participantes = df["participantes"].nunique()
+# Separações
+df_adultos = df[df["tipo"] == "adulto"]
+df_criancas = df[df["tipo"].isin(["kids", "teen", "baby"])]
+
+# Totais
+total_adultos_unicos = df_adultos["participantes"].nunique()
+total_criancas_unicos = df_criancas["participantes"].nunique()
 total_encontros = df["data"].nunique()
 
-media_presenca = (
-    df[df["presenca"] == "presente"]
+# Média presença ADULTOS
+media_presenca_adultos = (
+    df_adultos[df_adultos["presenca"] == "presente"]
     .groupby("data")
     .size()
     .mean()
 )
 
-taxa_presenca = (
-    len(df[df["presenca"] == "presente"]) / len(df) * 100
-    if len(df) > 0 else 0
+# Taxa presença ADULTOS
+taxa_presenca_adultos = (
+    len(df_adultos[df_adultos["presenca"] == "presente"]) /
+    len(df_adultos) * 100
+    if len(df_adultos) > 0 else 0
 )
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.markdown(f"""
 <div class="kpi-card">
-<div class="kpi-title">Participantes Únicos</div>
-<div class="kpi-value">{total_participantes}</div>
+<div class="kpi-title">Participantes (Adultos)</div>
+<div class="kpi-value">{total_adultos_unicos}</div>
 </div>
 """, unsafe_allow_html=True)
 
 col2.markdown(f"""
+<div class="kpi-card">
+<div class="kpi-title">Crianças (Kids/Teen/Baby)</div>
+<div class="kpi-value">{total_criancas_unicos}</div>
+</div>
+""", unsafe_allow_html=True)
+
+col3.markdown(f"""
 <div class="kpi-card">
 <div class="kpi-title">Encontros</div>
 <div class="kpi-value">{total_encontros}</div>
 </div>
 """, unsafe_allow_html=True)
 
-col3.markdown(f"""
+col4.markdown(f"""
 <div class="kpi-card">
-<div class="kpi-title">Média Presença</div>
-<div class="kpi-value">{round(media_presenca,1) if media_presenca else 0}</div>
+<div class="kpi-title">Média Presença (Adultos)</div>
+<div class="kpi-value">{round(media_presenca_adultos,1) if media_presenca_adultos else 0}</div>
 </div>
 """, unsafe_allow_html=True)
 
-col4.markdown(f"""
+col5.markdown(f"""
 <div class="kpi-card">
-<div class="kpi-title">Taxa Presença (%)</div>
-<div class="kpi-value">{round(taxa_presenca,1)}%</div>
+<div class="kpi-title">Taxa Presença (Adultos %)</div>
+<div class="kpi-value">{round(taxa_presenca_adultos,1)}%</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -210,8 +227,14 @@ fig2 = px.bar(
     x="data",
     y="Qtd",
     color="tipo",
-    barmode="group",   # 👈 barras lado a lado
-    text="Qtd"
+    barmode="group",
+    text="Qtd",
+    color_discrete_map={
+        "adulto": "#374151",   # cinza escuro elegante
+        "kids": "#9CA3AF",     # cinza médio
+        "teen": "#6B7280",     # cinza grafite
+        "baby": "#D1D5DB"      # cinza claro
+    }
 )
 
 fig2.update_traces(
@@ -249,23 +272,9 @@ col_g2.plotly_chart(fig2, use_container_width=True)
 
 st.markdown("---")
 
-# =========================
-# MAPA
-# =========================
 
-st.subheader("📍 Local dos Encontros")
 
-mapa_df = df[["latitude", "longitude", "bairro"]].dropna().drop_duplicates()
 
-if not mapa_df.empty:
-    st.map(mapa_df.rename(columns={
-        "latitude": "lat",
-        "longitude": "lon"
-    }))
-else:
-    st.warning("Sem coordenadas disponíveis para o filtro selecionado.")
-
-st.markdown("---")
 
 
 
@@ -289,7 +298,8 @@ else:
         df_presentes
         .groupby("data")
         .agg(
-            qtd_presentes=("participantes", "nunique"),
+            qtd_presentes_adultos=("tipo", lambda x: (x == "adulto").sum()),
+            qtd_criancas=("tipo", lambda x: x.isin(["kids","teen","baby"]).sum()),
             qtd_visitantes=("obs", lambda x: (x == "visitante").sum())
         )
         .reset_index()
@@ -339,7 +349,9 @@ st.markdown("---")
 
 
 
-
+# =========================
+# TABELA "QUEM ESTEVE PRESENTE"
+# =========================
 
 st.subheader("Quem esteve presente")
 
@@ -347,11 +359,10 @@ if df_presentes.empty:
     st.warning("Nenhum participante encontrado para o filtro selecionado.")
 else:
     tabela_final = (
-    df_presentes
-    .assign(data_formatada=df_presentes["data"].dt.strftime("%d-%m-%Y"))
-    [["data_formatada", "participantes"]]
-    .sort_values("data_formatada", ascending=False)
-    .rename(columns={"data_formatada": "data"})
+        df_presentes
+        .sort_values("data", ascending=False)
+        .assign(data=lambda x: x["data"].dt.strftime("%d-%m-%Y"))
+        [["data", "participantes", "tipo"]]
     )
 
     st.dataframe(
@@ -377,6 +388,43 @@ st.markdown("---")
 #        st.markdown(f"**Encontro - {data_formatada}**")
 #        st.image(row["foto_url"], use_container_width=True)
 #
+
+
+
+
+
+
+
+
+
+
+# =========================
+# MAPA
+# =========================
+
+st.subheader("📍 Local dos Encontros")
+
+mapa_df = df[["latitude", "longitude", "bairro"]].dropna().drop_duplicates()
+
+if not mapa_df.empty:
+    st.map(mapa_df.rename(columns={
+        "latitude": "lat",
+        "longitude": "lon"
+    }))
+else:
+    st.warning("Sem coordenadas disponíveis para o filtro selecionado.")
+
+st.markdown("---")
+
+
+
+
+
+
+
+
+
+
 
 # =========================
 # 📸 FOTOS DOS ENCONTROS (DINÂMICO)
@@ -422,5 +470,3 @@ else:
 
 
 st.markdown("---")
-
-
